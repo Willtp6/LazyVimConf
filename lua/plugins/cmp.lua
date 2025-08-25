@@ -1,0 +1,20 @@
+return {}
+-- return {
+--   "hrsh7th/nvim-cmp",
+--   opts = function(_, opts)
+--     local cmp = require("cmp")
+--     opts.preselect = cmp.PreselectMode.None
+--
+--     cmp.setup({
+--       mapping = {
+--         ["<CR>"] = cmp.mapping.confirm({
+--           select = false,
+--         }),
+--       },
+--     })
+--     opts.completion.completionopt = "menu,menuone,noselect"
+--     opts.mapping = vim.tbl_extend("force", opts.mapping, {
+--       ["<CR>"] = cmp.mapping.confirm({ select = false }),
+--     })
+--   end,
+-- }
