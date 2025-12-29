@@ -5,6 +5,7 @@ return {
       c = { "clang_format" },
       cpp = { "clang_format" },
       h = { "clang_format" },
+      rust = {"rustfmt"},
     },
   },
 }
