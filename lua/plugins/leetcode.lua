@@ -1,3 +1,6 @@
+-- Cargo.toml lives in `leetcode_root`; solution files go one level deeper
+local leetcode_root = vim.fn.expand("~/Developer/playground/leetcode")
+
 return {
   {
     "kawre/leetcode.nvim",
@@ -11,7 +14,7 @@ return {
     opts = {
       lang = "rust",
       storage = {
-        home = vim.fn.expand("~/Developer/playground/leetcode"),
+        home = leetcode_root .. "/src",
         cache = vim.fn.stdpath("cache") .. "/leetcode",
       },
       plugins = {
@@ -40,8 +43,7 @@ return {
               return
             end
 
-            local config = require("leetcode.config")
-            local cargo_path = config.user.storage.home .. "/Cargo.toml"
+            local cargo_path = leetcode_root .. "/Cargo.toml"
 
             local content = [[
 [package]
