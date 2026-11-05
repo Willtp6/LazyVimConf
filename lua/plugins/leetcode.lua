@@ -57,10 +57,29 @@ return {
     dependencies = {
       "nvim-lua/plenary.nvim",
       "MunifTanjim/nui.nvim",
+      -- renders problem images in the description panel (Ghostty speaks the kitty protocol)
+      -- requires ImageMagick: `brew install imagemagick`
+      {
+        "3rd/image.nvim",
+        build = false,
+        opts = {
+          backend = "kitty",
+          processor = "magick_cli",
+          -- only used by leetcode.nvim; markdown rendering is left to markview
+          integrations = {
+            markdown = { enabled = false },
+            asciidoc = { enabled = false },
+            neorg = { enabled = false },
+            rst = { enabled = false },
+            typst = { enabled = false },
+          },
+        },
+      },
     },
 
     opts = {
       lang = "rust",
+      image_support = true,
       storage = {
         home = leetcode_root .. "/src",
         cache = vim.fn.stdpath("cache") .. "/leetcode",
