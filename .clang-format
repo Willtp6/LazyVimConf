@@ -1,0 +1,4 @@
+# Global default for C/C++. Used by conform when the project being edited
+# has no .clang-format of its own (see lua/plugins/conform.lua).
+BasedOnStyle: LLVM
+IndentWidth: 4
