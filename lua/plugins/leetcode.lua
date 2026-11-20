@@ -40,9 +40,40 @@ local function use_lang_dirs()
   end
 end
 
--- LeetCode ships helper types (TreeNode, ListNode, Node, ...) as a commented
--- "Definition for ..." block inside the @leet section. Uncomment it and move it
--- above `@leet start` so it compiles locally but is never submitted.
+-- LeetCode ships helper types (TreeNode, ListNode, Node, ...) commented out
+-- inside the @leet section: Rust as `// ...` lines, C as a `/** ... */` block.
+-- Returns the block starting at line `i` (first, last, uncommented lines), if any.
+local function definition_at(lines, i, last)
+  if lines[i]:match("^%s*// Definition for") then
+    local j = i
+    while j < last and lines[j + 1]:match("^%s*//") and not lines[j + 1]:match("^%s*// Definition for") do
+      j = j + 1
+    end
+    local defs = { lines[i] }
+    for k = i + 1, j do
+      table.insert(defs, (lines[k]:gsub("^(%s*)// ?", "%1")))
+    end
+    return i, j, defs
+  end
+
+  if lines[i]:match("^%s*/%*%*%s*$") and i < last and lines[i + 1]:match("^%s*%*%s*Definition for") then
+    local j = i + 2
+    while j <= last and not lines[j]:match("%*/") do
+      j = j + 1
+    end
+    if j > last then
+      return
+    end
+    local defs = { (lines[i + 1]:gsub("^%s*%*%s*", "// ")) }
+    for k = i + 2, j - 1 do
+      table.insert(defs, (lines[k]:gsub("^%s*%* ?", "")))
+    end
+    return i, j, defs
+  end
+end
+
+-- Uncomment those definitions and move them above `@leet start` so the file
+-- compiles locally, while the submitted section stays untouched.
 local function hoist_definitions(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
 
@@ -59,29 +90,26 @@ local function hoist_definitions(bufnr)
     return
   end
 
-  local def_start
-  for i = start_i + 1, end_i - 1 do
-    if lines[i]:match("^%s*// Definition for") then
-      def_start = i
-      break
+  local blocks, defs = {}, {}
+  local i = start_i + 1
+  while i < end_i do
+    local first, last, block = definition_at(lines, i, end_i - 1)
+    if first then
+      table.insert(blocks, { first, last })
+      vim.list_extend(defs, block)
+      i = last + 1
+    else
+      i = i + 1
     end
   end
-  if not def_start then
+  if #blocks == 0 then
     return
-  end
-
-  local def_end = def_start
-  while def_end + 1 < end_i and lines[def_end + 1]:match("^%s*//") do
-    def_end = def_end + 1
-  end
-
-  local defs = { lines[def_start] }
-  for i = def_start + 1, def_end do
-    table.insert(defs, (lines[i]:gsub("^(%s*)// ?", "%1")))
   end
   table.insert(defs, "")
 
-  vim.api.nvim_buf_set_lines(bufnr, def_start - 1, def_end, false, {})
+  for b = #blocks, 1, -1 do
+    vim.api.nvim_buf_set_lines(bufnr, blocks[b][1] - 1, blocks[b][2], false, {})
+  end
   vim.api.nvim_buf_set_lines(bufnr, start_i - 1, start_i - 1, false, defs)
   vim.api.nvim_buf_call(bufnr, function()
     vim.cmd("silent! write")
@@ -141,16 +169,32 @@ return {
             "pub struct Solution;",
           },
         },
+        -- LeetCode's C judge includes these implicitly; add them so clangd agrees
+        c = {
+          before = {
+            "#include <limits.h>",
+            "#include <math.h>",
+            "#include <stdbool.h>",
+            "#include <stdint.h>",
+            "#include <stdio.h>",
+            "#include <stdlib.h>",
+            "#include <string.h>",
+          },
+        },
       },
       hooks = {
         ["enter"] = { use_lang_dirs },
         ["question_enter"] = {
           function(question)
-            if question.lang ~= "rust" then
+            if question.lang ~= "rust" and question.lang ~= "c" then
               return
             end
 
             hoist_definitions(question.bufnr)
+
+            if question.lang ~= "rust" then
+              return
+            end
 
             local content = [[
 [package]
