@@ -72,22 +72,25 @@ local function definition_at(lines, i, last)
   end
 end
 
--- Uncomment those definitions and move them above `@leet start` so the file
--- compiles locally, while the submitted section stays untouched.
-local function hoist_definitions(bufnr)
-  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-
-  local start_i, end_i
+-- line numbers of `// @leet start` and `// @leet end`
+local function leet_section(lines)
+  local start_i
   for i, line in ipairs(lines) do
     if not start_i and line:match("^%s*// @leet start") then
       start_i = i
     elseif start_i and line:match("^%s*// @leet end") then
-      end_i = i
-      break
+      return start_i, i
     end
   end
-  if not (start_i and end_i) then
-    return
+end
+
+-- Uncomment those definitions and move them above `@leet start` so the file
+-- compiles locally, while the submitted section stays untouched.
+local function hoist_definitions(bufnr)
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local start_i, end_i = leet_section(lines)
+  if not start_i then
+    return false
   end
 
   local blocks, defs = {}, {}
@@ -103,7 +106,7 @@ local function hoist_definitions(bufnr)
     end
   end
   if #blocks == 0 then
-    return
+    return false
   end
   table.insert(defs, "")
 
@@ -111,9 +114,36 @@ local function hoist_definitions(bufnr)
     vim.api.nvim_buf_set_lines(bufnr, blocks[b][1] - 1, blocks[b][2], false, {})
   end
   vim.api.nvim_buf_set_lines(bufnr, start_i - 1, start_i - 1, false, defs)
-  vim.api.nvim_buf_call(bufnr, function()
-    vim.cmd("silent! write")
-  end)
+  return true
+end
+
+-- Rust design problems end with a `/** Your X object will be instantiated ... */`
+-- doc comment. Locally nothing follows it, which is a parse error ("expected
+-- item after doc comment"), so turn it into a plain `/*` comment.
+local function demote_trailing_doc_comment(bufnr)
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local start_i, end_i = leet_section(lines)
+  if not start_i then
+    return false
+  end
+
+  local i = end_i - 1
+  while i > start_i and lines[i]:match("^%s*$") do
+    i = i - 1
+  end
+  if i <= start_i or not lines[i]:match("%*/%s*$") then
+    return false
+  end
+  while i > start_i and not lines[i]:match("^%s*/%*") do
+    i = i - 1
+  end
+  if i <= start_i or not lines[i]:match("^%s*/%*%*") then
+    return false
+  end
+
+  local line = lines[i]:gsub("^(%s*)/%*%*", "%1/*", 1)
+  vim.api.nvim_buf_set_lines(bufnr, i - 1, i, false, { line })
+  return true
 end
 
 return {
@@ -190,7 +220,15 @@ return {
               return
             end
 
-            hoist_definitions(question.bufnr)
+            local changed = hoist_definitions(question.bufnr)
+            if question.lang == "rust" then
+              changed = demote_trailing_doc_comment(question.bufnr) or changed
+            end
+            if changed then
+              vim.api.nvim_buf_call(question.bufnr, function()
+                vim.cmd("silent! write")
+              end)
+            end
 
             if question.lang ~= "rust" then
               return
