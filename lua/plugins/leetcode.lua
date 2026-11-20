@@ -1,5 +1,44 @@
--- Cargo.toml lives in `leetcode_root`; solution files go one level deeper
 local leetcode_root = vim.fn.expand("~/Developer/playground/leetcode")
+
+-- one folder per language; rust/ is a Cargo project with solutions in rust/src
+local lang_dirs = {
+  rust = leetcode_root .. "/rust/src",
+  c = leetcode_root .. "/c",
+}
+local cargo_toml = leetcode_root .. "/rust/Cargo.toml"
+
+-- pick per launch with `LEET_LANG=c nvim leetcode.nvim`, or `:LeetLang` inside nvim
+local default_lang = lang_dirs[vim.env.LEET_LANG or ""] and vim.env.LEET_LANG or "rust"
+
+-- leetcode.nvim saves everything in one `storage.home`; route each question to
+-- its language's folder instead, also when switching languages mid-session.
+local function use_lang_dirs()
+  local Question = require("leetcode-ui.question")
+  if Question._lang_dirs then
+    return
+  end
+  Question._lang_dirs = true
+
+  local Path = require("plenary.path")
+  local config = require("leetcode.config")
+  local path = Question.path
+
+  function Question:path()
+    local dir = lang_dirs[self.lang]
+    if not dir then
+      return path(self)
+    end
+    vim.fn.mkdir(dir, "p")
+    local home = config.storage.home
+    config.storage.home = Path:new(dir)
+    local ok, file, existed = pcall(path, self)
+    config.storage.home = home
+    if not ok then
+      error(file, 0)
+    end
+    return file, existed
+  end
+end
 
 -- LeetCode ships helper types (TreeNode, ListNode, Node, ...) as a commented
 -- "Definition for ..." block inside the @leet section. Uncomment it and move it
@@ -78,11 +117,10 @@ return {
     },
 
     opts = {
-      -- pick per launch with `LEET_LANG=cpp nvim leetcode.nvim`, or `:LeetLang` inside nvim
-      lang = vim.env.LEET_LANG or "rust",
+      lang = default_lang,
       image_support = true,
       storage = {
-        home = leetcode_root .. "/src",
+        home = lang_dirs[default_lang],
         cache = vim.fn.stdpath("cache") .. "/leetcode",
       },
       plugins = {
@@ -105,6 +143,7 @@ return {
         },
       },
       hooks = {
+        ["enter"] = { use_lang_dirs },
         ["question_enter"] = {
           function(question)
             if question.lang ~= "rust" then
@@ -112,8 +151,6 @@ return {
             end
 
             hoist_definitions(question.bufnr)
-
-            local cargo_path = leetcode_root .. "/Cargo.toml"
 
             local content = [[
 [package]
@@ -128,7 +165,7 @@ path = "%s"
 [dependencies]
 ]]
 
-            local file = io.open(cargo_path, "w")
+            local file = io.open(cargo_toml, "w")
 
             if file then
               file:write(content:format(question.q.frontend_id, question:path()))
@@ -140,22 +177,25 @@ path = "%s"
     },
 
     config = function(_, opts)
+      -- leetcode.nvim only creates the last component of storage.home
+      vim.fn.mkdir(opts.storage.home, "p")
       require("leetcode").setup(opts)
 
-      local function slugs()
-        return vim.tbl_map(function(l)
-          return l.slug
-        end, require("leetcode.config.langs"))
-      end
+      local langs = vim.tbl_keys(lang_dirs)
+      table.sort(langs, function(a, b)
+        return a == "rust" or (b ~= "rust" and a < b)
+      end)
 
       -- choose the language, then open (or return to) leetcode
-      local function start_with(slug)
-        if not vim.tbl_contains(slugs(), slug) then
-          return vim.notify("Unsupported LeetCode language: " .. slug, vim.log.levels.ERROR)
+      local function start_with(lang)
+        if not lang_dirs[lang] then
+          return vim.notify("LeetCode language must be one of: " .. table.concat(langs, ", "), vim.log.levels.ERROR)
         end
+        vim.fn.mkdir(lang_dirs[lang], "p")
         local config = require("leetcode.config")
-        config.user.lang = slug -- read when :Leet starts
-        config.lang = slug -- used by questions opened from now on
+        config.user.lang = lang -- read when :Leet starts
+        config.user.storage.home = lang_dirs[lang]
+        config.lang = lang -- used by questions opened from now on
         vim.cmd("Leet")
       end
 
@@ -163,19 +203,16 @@ path = "%s"
         if args.args ~= "" then
           return start_with(args.args)
         end
-        vim.ui.select(require("leetcode.config.langs"), {
-          prompt = "LeetCode language",
-          format_item = function(l)
-            return ("%s (%s)"):format(l.lang, l.slug)
-          end,
-        }, function(choice)
+        vim.ui.select(langs, { prompt = "LeetCode language" }, function(choice)
           if choice then
-            start_with(choice.slug)
+            start_with(choice)
           end
         end)
       end, {
         nargs = "?",
-        complete = slugs,
+        complete = function()
+          return langs
+        end,
         desc = "Choose LeetCode language and open leetcode.nvim",
       })
     end,

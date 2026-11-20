@@ -6,7 +6,7 @@ return {
       opts.server = opts.server or {}
 
       opts.server.root_dir = function(fname)
-        local leetcode_dir = vim.fn.expand("~/Developer/playground/leetcode")
+        local leetcode_dir = vim.fn.expand("~/Developer/playground/leetcode/rust")
 
         if fname:sub(1, #leetcode_dir) == leetcode_dir then
           return leetcode_dir
