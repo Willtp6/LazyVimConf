@@ -78,7 +78,8 @@ return {
     },
 
     opts = {
-      lang = "rust",
+      -- pick per launch with `LEET_LANG=cpp nvim leetcode.nvim`, or `:LeetLang` inside nvim
+      lang = vim.env.LEET_LANG or "rust",
       image_support = true,
       storage = {
         home = leetcode_root .. "/src",
@@ -137,5 +138,46 @@ path = "%s"
         },
       },
     },
+
+    config = function(_, opts)
+      require("leetcode").setup(opts)
+
+      local function slugs()
+        return vim.tbl_map(function(l)
+          return l.slug
+        end, require("leetcode.config.langs"))
+      end
+
+      -- choose the language, then open (or return to) leetcode
+      local function start_with(slug)
+        if not vim.tbl_contains(slugs(), slug) then
+          return vim.notify("Unsupported LeetCode language: " .. slug, vim.log.levels.ERROR)
+        end
+        local config = require("leetcode.config")
+        config.user.lang = slug -- read when :Leet starts
+        config.lang = slug -- used by questions opened from now on
+        vim.cmd("Leet")
+      end
+
+      vim.api.nvim_create_user_command("LeetLang", function(args)
+        if args.args ~= "" then
+          return start_with(args.args)
+        end
+        vim.ui.select(require("leetcode.config.langs"), {
+          prompt = "LeetCode language",
+          format_item = function(l)
+            return ("%s (%s)"):format(l.lang, l.slug)
+          end,
+        }, function(choice)
+          if choice then
+            start_with(choice.slug)
+          end
+        end)
+      end, {
+        nargs = "?",
+        complete = slugs,
+        desc = "Choose LeetCode language and open leetcode.nvim",
+      })
+    end,
   },
 }

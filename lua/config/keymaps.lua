@@ -7,6 +7,10 @@ vim.keymap.set("n", "<leader>ll", "<cmd>Leet list<cr>", {
     desc = "LeetCode List",
 })
 
+vim.keymap.set("n", "<leader>lL", "<cmd>LeetLang<cr>", {
+    desc = "LeetCode (choose language)",
+})
+
 vim.keymap.set("n", "<leader>lt", "<cmd>Leet tabs<cr>", {
     desc = "LeetCode Tabs",
 })
