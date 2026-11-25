@@ -259,6 +259,20 @@ path = "%s"
     },
 
     config = function(_, opts)
+      -- LeetCode's Cloudflare answers curl's HTTP/2 requests to the run/submit
+      -- endpoints with 403, which leetcode.nvim reports as an expired cookie
+      -- (kawre/leetcode.nvim#167). Use HTTP/1.1 for requests to leetcode.
+      local curl = require("plenary.curl")
+      for _, method in ipairs({ "get", "post", "put" }) do
+        local request = curl[method]
+        curl[method] = function(url, params)
+          if type(url) == "string" and url:match("^https://leetcode%.") then
+            params = vim.tbl_extend("force", params or {}, { http_version = "HTTP/1.1" })
+          end
+          return request(url, params)
+        end
+      end
+
       -- leetcode.nvim only creates the last component of storage.home
       vim.fn.mkdir(opts.storage.home, "p")
       require("leetcode").setup(opts)
